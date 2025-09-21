@@ -5,9 +5,12 @@ import type { AudioFile, EffectSettings } from '../types';
 interface AudioVisualizerProps {
   audioFile: AudioFile | null;
   effectSettings: EffectSettings;
+  remixRequest: { pattern: number[], bpm: number } | null;
+  onRemixComplete: () => void;
+  setLoading: (loading: boolean) => void;
 }
 
-export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioFile, effectSettings }) => {
+export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioFile, effectSettings, remixRequest, onRemixComplete, setLoading }) => {
   const waveformRef = useRef<HTMLDivElement>(null);
   const wavesurferRef = useRef<WaveSurfer | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -36,6 +39,88 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioFile, eff
     }
     return impulse;
   }, []);
+
+  const sliceAndRemixBuffer = useCallback(async (
+    audioBuffer: AudioBuffer,
+    bpm: number,
+    pattern: number[]
+  ): Promise<AudioBuffer | null> => {
+    if (!audioContextRef.current) return null;
+    
+    const sliceDuration = (60 / bpm) * 0.5; // 8th note duration
+    const numSlices = Math.floor(audioBuffer.duration / sliceDuration);
+    if (numSlices < 1) return audioBuffer;
+
+    const { numberOfChannels, sampleRate } = audioBuffer;
+    
+    const slices: AudioBuffer[] = [];
+    for (let i = 0; i < numSlices; i++) {
+      const startOffset = i * sliceDuration;
+      const frameCount = Math.floor(sliceDuration * sampleRate);
+      if (startOffset + sliceDuration > audioBuffer.duration) continue;
+
+      const sliceBuffer = audioContextRef.current.createBuffer(numberOfChannels, frameCount, sampleRate);
+      for (let channel = 0; channel < numberOfChannels; channel++) {
+        const channelData = audioBuffer.getChannelData(channel);
+        const sliceData = sliceBuffer.getChannelData(channel);
+        sliceData.set(channelData.subarray(Math.floor(startOffset * sampleRate), Math.floor(startOffset * sampleRate) + frameCount));
+      }
+      slices.push(sliceBuffer);
+    }
+
+    if (slices.length === 0) return audioBuffer;
+
+    const totalFrames = pattern.reduce((acc, index) => {
+        if (index >= 0 && index < slices.length) {
+            return acc + slices[index].length;
+        }
+        // for silence (-1)
+        return acc + Math.floor(sliceDuration * sampleRate);
+    }, 0);
+
+    const newBuffer = audioContextRef.current.createBuffer(numberOfChannels, totalFrames, sampleRate);
+
+    let currentFrame = 0;
+    for (const sliceIndex of pattern) {
+      if (sliceIndex >= 0 && sliceIndex < slices.length) {
+        const slice = slices[sliceIndex];
+        for (let channel = 0; channel < numberOfChannels; channel++) {
+          newBuffer.getChannelData(channel).set(slice.getChannelData(channel), currentFrame);
+        }
+        currentFrame += slice.length;
+      } else { // Handle silence
+         currentFrame += Math.floor(sliceDuration * sampleRate);
+      }
+    }
+    
+    return newBuffer;
+  }, []);
+
+  useEffect(() => {
+    if (!remixRequest || !wavesurferRef.current) return;
+    
+    const processRemix = async () => {
+        setLoading(true);
+        const originalBuffer = wavesurferRef.current?.getDecodedData();
+        if (!originalBuffer) {
+            onRemixComplete();
+            return;
+        }
+
+        const newBuffer = await sliceAndRemixBuffer(originalBuffer, remixRequest.bpm, remixRequest.pattern);
+        
+        if (newBuffer && wavesurferRef.current) {
+            // FIX: Property 'loadDecodedData' does not exist on type 'WaveSurfer'. This method is deprecated.
+            // The modern approach is to use the `load` method with pre-decoded channel data and duration.
+            const channels = Array.from({ length: newBuffer.numberOfChannels }, (_, i) => newBuffer.getChannelData(i));
+            // The existing WaveSurfer types might be out of date. We cast to any to use the modern API.
+            (wavesurferRef.current as any).load('', channels, newBuffer.duration);
+        }
+        onRemixComplete();
+    };
+
+    processRemix();
+  }, [remixRequest, onRemixComplete, sliceAndRemixBuffer, setLoading]);
 
   useEffect(() => {
     if (!waveformRef.current) return;
@@ -69,7 +154,6 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioFile, eff
       highShelf.type = 'highshelf';
       highShelfFilterRef.current = highShelf;
 
-      // Create and chain 10 peaking filters
       peakingFiltersRef.current = [];
       let lastNode: AudioNode = highShelf;
       for (let i = 0; i < 10; i++) {
@@ -90,13 +174,11 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioFile, eff
       const dryGain = audioContext.createGain();
       const wetGain = audioContext.createGain();
       
-      source.connect(lowShelf).connect(highShelf); // Connect to the start of the peaking chain
+      source.connect(lowShelf).connect(highShelf);
       
-      // Connect the end of the peaking chain to the rest of the graph
       lastNode.connect(dryGain).connect(audioContext.destination);
       lastNode.connect(convolver).connect(wetGain).connect(audioContext.destination);
       
-      // Initial settings
       lowShelf.frequency.value = effectSettings.low_shelf.frequency;
       lowShelf.gain.value = effectSettings.low_shelf.gain;
       highShelf.frequency.value = effectSettings.high_shelf.frequency;
@@ -148,10 +230,6 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioFile, eff
             filter.frequency.value = band.frequency;
             filter.gain.value = band.enabled ? band.gain : 0;
             filter.Q.value = band.q;
-            // NOTE: The 'target' property (Transients/Sustained) is a UI/state prototype.
-            // The Web Audio API does not natively support transient/sustained splitting.
-            // A real implementation would require a complex custom AudioWorklet with FFT analysis.
-            // For this demo, the EQ is always applied to the 'All' signal.
         }
     });
     if (reverbGainRef.current){

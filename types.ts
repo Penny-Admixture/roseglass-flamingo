@@ -26,6 +26,17 @@ export interface ParametricEQBand {
   target: EQTarget;
 }
 
+export interface RemixerPreset {
+  name: string;
+  pattern: number[];
+}
+
+export interface RemixerSettings {
+  bpm: number;
+  activePreset: string;
+  presets: RemixerPreset[];
+}
+
 export interface EffectSettings {
   low_shelf: {
     frequency: number;
@@ -39,4 +50,5 @@ export interface EffectSettings {
     mix: number;
   };
   parametric_eq_bands: ParametricEQBand[];
+  remixer: RemixerSettings;
 }

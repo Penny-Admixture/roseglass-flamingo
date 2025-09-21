@@ -1,5 +1,5 @@
 import React from 'react';
-import type { AudioFile, EffectSettings, ParametricEQBand, EQTarget } from '../../types';
+import type { AudioFile, EffectSettings, ParametricEQBand, EQTarget, RemixerSettings } from '../../types';
 
 interface SliderControlProps {
     label: string;
@@ -106,14 +106,69 @@ const EQBandControl: React.FC<EQBandControlProps> = ({ band, onBandChange }) => 
     );
 };
 
+interface RemixerControlProps {
+    settings: RemixerSettings;
+    onSettingsChange: (changes: Partial<RemixerSettings>) => void;
+    onRemix: (pattern: number[]) => void;
+    onResetAudio: () => void;
+}
+
+const RemixerControl: React.FC<RemixerControlProps> = ({ settings, onSettingsChange, onRemix, onResetAudio }) => {
+    const activePattern = settings.presets.find(p => p.name === settings.activePreset)?.pattern || [];
+
+    return (
+        <EffectControl label="Rhythmic Slice Remixer">
+            <div className="flex items-center gap-4">
+                <label className="text-sm text-text-main">BPM</label>
+                <input
+                    type="number"
+                    value={settings.bpm}
+                    onChange={(e) => onSettingsChange({ bpm: Number(e.target.value) })}
+                    className="w-24 bg-surface-2 border border-border rounded p-1 text-center"
+                />
+            </div>
+            <div>
+                <label className="text-sm text-text-main mb-2 block">Preset Pattern</label>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                    {settings.presets.map(preset => (
+                        <button
+                            key={preset.name}
+                            onClick={() => onSettingsChange({ activePreset: preset.name })}
+                            className={`text-xs py-2 px-2 rounded-md transition-colors ${settings.activePreset === preset.name ? 'bg-accent-periwinkle text-background font-bold' : 'bg-surface-2 hover:bg-border'}`}
+                        >
+                            {preset.name}
+                        </button>
+                    ))}
+                </div>
+            </div>
+            <div className="flex gap-4 pt-2">
+                 <button 
+                    onClick={() => onRemix(activePattern)}
+                    className="flex-grow bg-accent-purple text-white font-bold py-2 px-4 rounded-md hover:opacity-80 transition-all"
+                >
+                    Apply Remix
+                </button>
+                <button 
+                    onClick={onResetAudio}
+                    className="flex-grow bg-surface-2 text-text-main font-bold py-2 px-4 rounded-md hover:bg-border transition-all"
+                >
+                    Reset to Original
+                </button>
+            </div>
+        </EffectControl>
+    );
+};
+
 
 interface ProductionTabProps {
     audioFile: AudioFile | null;
     effectSettings: EffectSettings;
-    onSettingsChange: (effect: 'parametric_eq_bands', settings: { id: number; changes: Partial<ParametricEQBand> }) => void;
+    onSettingsChange: (effect: 'parametric_eq_bands' | 'remixer', settings: any) => void;
+    onRemix: (pattern: number[]) => void;
+    onResetAudio: () => void;
 }
 
-export const ProductionTab: React.FC<ProductionTabProps> = ({ audioFile, effectSettings, onSettingsChange }) => {
+export const ProductionTab: React.FC<ProductionTabProps> = ({ audioFile, effectSettings, onSettingsChange, onRemix, onResetAudio }) => {
 
     if (!audioFile) {
         return (
@@ -132,14 +187,24 @@ export const ProductionTab: React.FC<ProductionTabProps> = ({ audioFile, effectS
         <div>
             <h2 className="text-2xl font-bold mb-4 text-accent-periwinkle">Production Suite: <span className="text-white font-normal">{audioFile.file.name}</span></h2>
             
-            <div className="space-y-4">
-                <EffectControl label="10-Band Parametric EQ">
-                    <div className="max-h-[60vh] overflow-y-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-2 bg-background rounded">
-                        {effectSettings.parametric_eq_bands.map(band => (
-                            <EQBandControl key={band.id} band={band} onBandChange={handleBandChange} />
-                        ))}
-                    </div>
-                </EffectControl>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                <div className="lg:col-span-2 space-y-4">
+                    <EffectControl label="10-Band Parametric EQ">
+                        <div className="max-h-[60vh] overflow-y-auto grid grid-cols-1 md:grid-cols-2 gap-4 p-2 bg-background rounded">
+                            {effectSettings.parametric_eq_bands.map(band => (
+                                <EQBandControl key={band.id} band={band} onBandChange={handleBandChange} />
+                            ))}
+                        </div>
+                    </EffectControl>
+                </div>
+                <div className="lg:col-span-1 space-y-4">
+                     <RemixerControl 
+                        settings={effectSettings.remixer}
+                        onSettingsChange={(changes) => onSettingsChange('remixer', changes)}
+                        onRemix={onRemix}
+                        onResetAudio={onResetAudio}
+                    />
+                </div>
             </div>
         </div>
     );

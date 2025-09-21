@@ -1,11 +1,11 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { FileUploader } from './components/FileUploader';
 import { GuideTab } from './components/tabs/GuideTab';
 import { AnalysisTab } from './components/tabs/AnalysisTab';
 import { ProductionTab } from './components/tabs/ProductionTab';
 import { AudioVisualizer } from './components/AudioVisualizer';
 import { LogoIcon } from './components/icons';
-import type { AudioFile, EffectSettings, ParametricEQBand } from './types';
+import type { AudioFile, EffectSettings, ParametricEQBand, RemixerPreset } from './types';
 import { Tab } from './types';
 
 
@@ -15,15 +15,23 @@ const TabContent: React.FC<{
   isLoading: boolean; 
   setLoading: (loading: boolean) => void;
   effectSettings: EffectSettings;
-  onEffectChange: (effect: keyof EffectSettings | 'parametric_eq_bands', settings: any) => void;
-}> = ({ activeTab, audioFile, isLoading, setLoading, effectSettings, onEffectChange }) => {
+  onEffectChange: (effect: keyof EffectSettings | 'parametric_eq_bands' | 'remixer', settings: any) => void;
+  onRemix: (pattern: number[]) => void;
+  onResetAudio: () => void;
+}> = ({ activeTab, audioFile, isLoading, setLoading, effectSettings, onEffectChange, onRemix, onResetAudio }) => {
   switch (activeTab) {
     case Tab.GUIDE:
       return <GuideTab />;
     case Tab.ANALYSIS:
       return <AnalysisTab audioFile={audioFile} isLoading={isLoading} setLoading={setLoading} />;
     case Tab.PRODUCTION:
-      return <ProductionTab audioFile={audioFile} effectSettings={effectSettings} onSettingsChange={onEffectChange} />;
+      return <ProductionTab 
+                audioFile={audioFile} 
+                effectSettings={effectSettings} 
+                onSettingsChange={onEffectChange} 
+                onRemix={onRemix}
+                onResetAudio={onResetAudio}
+             />;
     default:
       return <GuideTab />;
   }
@@ -42,26 +50,49 @@ const initialEQBands: ParametricEQBand[] = [
   { id: 10, enabled: false, frequency: 15000, gain: 0, q: 1, target: 'All' },
 ];
 
+const remixerPresets: RemixerPreset[] = [
+    { name: 'Buildup', pattern: [0, 1, 2, 3, 4, 5, 6, 7, 4, 5, 6, 7, 6, 7, 6, 7] },
+    { name: 'Stutter End', pattern: [0, 1, 2, 3, 4, 5, 6, 7, 0, 1, 2, 3, 4, 5, 7, 7] },
+    { name: 'Reverse Buildup', pattern: [7, 6, 5, 4, 3, 2, 1, 0] },
+    { name: 'Kick Pattern', pattern: [0, -1, 2, -1, 4, -1, 6, -1] }, // -1 means silence
+    { name: 'Forward & Back', pattern: [0, 1, 2, 3, 4, 5, 6, 7, 7, 6, 5, 4, 3, 2, 1, 0] },
+    { name: 'Randomized', pattern: Array.from({length: 8}, () => Math.floor(Math.random() * 8)) },
+];
+
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>(Tab.GUIDE);
   const [audioFile, setAudioFile] = useState<AudioFile | null>(null);
+  const [originalAudioUrl, setOriginalAudioUrl] = useState<string | null>(null);
   const [isLoading, setLoading] = useState(false);
+  const [remixRequest, setRemixRequest] = useState<{ pattern: number[], bpm: number } | null>(null);
+
   const [effectSettings, setEffectSettings] = useState<EffectSettings>({
     low_shelf: { frequency: 320, gain: 0 },
     high_shelf: { frequency: 3200, gain: 0 },
     reverb: { mix: 0 },
     parametric_eq_bands: initialEQBands,
+    remixer: {
+        bpm: 120,
+        activePreset: 'Buildup',
+        presets: remixerPresets,
+    },
   });
 
   const handleFileChange = useCallback((file: File) => {
-    setAudioFile({
-      file,
-      url: URL.createObjectURL(file),
-    });
+    const url = URL.createObjectURL(file);
+    setAudioFile({ file, url });
+    setOriginalAudioUrl(url); // Save original URL for reset
     setActiveTab(Tab.PRODUCTION);
   }, []);
+
+  const handleResetAudio = useCallback(() => {
+    if (audioFile && originalAudioUrl) {
+      setAudioFile({ ...audioFile, url: originalAudioUrl });
+    }
+  }, [audioFile, originalAudioUrl]);
   
-  const handleEffectChange = useCallback((effectName: keyof EffectSettings | 'parametric_eq_bands', settings: any) => {
+  const handleEffectChange = useCallback((effectName: keyof EffectSettings | 'parametric_eq_bands' | 'remixer', settings: any) => {
     if (effectName === 'parametric_eq_bands') {
       setEffectSettings(prev => ({
         ...prev,
@@ -69,6 +100,11 @@ export default function App() {
           band.id === settings.id ? { ...band, ...settings.changes } : band
         ),
       }));
+    } else if (effectName === 'remixer') {
+         setEffectSettings(prev => ({
+            ...prev,
+            remixer: { ...prev.remixer, ...settings },
+        }));
     } else {
         setEffectSettings(prev => ({
             ...prev,
@@ -76,6 +112,10 @@ export default function App() {
         }));
     }
   }, []);
+
+  const handleRemix = useCallback((pattern: number[]) => {
+      setRemixRequest({ pattern, bpm: effectSettings.remixer.bpm });
+  }, [effectSettings.remixer.bpm]);
 
 
   type TabButtonProps = {
@@ -125,9 +165,27 @@ export default function App() {
 
         <div className="md:w-3/4 flex flex-col gap-4">
           <div className="bg-surface-1 border border-border p-4 rounded-lg animate-fade-in">
-            <TabContent activeTab={activeTab} audioFile={audioFile} isLoading={isLoading} setLoading={setLoading} effectSettings={effectSettings} onEffectChange={handleEffectChange} />
+            <TabContent 
+              activeTab={activeTab} 
+              audioFile={audioFile} 
+              isLoading={isLoading} 
+              setLoading={setLoading} 
+              effectSettings={effectSettings} 
+              onEffectChange={handleEffectChange}
+              onRemix={handleRemix}
+              onResetAudio={handleResetAudio}
+            />
           </div>
-           <AudioVisualizer audioFile={audioFile} effectSettings={effectSettings} />
+           <AudioVisualizer 
+              audioFile={audioFile} 
+              effectSettings={effectSettings} 
+              remixRequest={remixRequest}
+              onRemixComplete={() => {
+                setRemixRequest(null);
+                setLoading(false);
+              }}
+              setLoading={setLoading}
+           />
         </div>
       </main>
     </div>
