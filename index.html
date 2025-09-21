@@ -1,0 +1,55 @@
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Audio Flamingo Web Studio</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              'brand-blue': '#00BFFF',
+              'brand-pink': '#FF007F',
+              'brand-purple': '#8A2BE2',
+              'dark-1': '#121212',
+              'dark-2': '#1E1E1E',
+              'dark-3': '#2A2A2A',
+              'dark-4': '#363636',
+              'light-1': '#E0E0E0',
+              'light-2': '#BDBDBD',
+            },
+            animation: {
+              'pulse-fast': 'pulse 1s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+              'fade-in': 'fadeIn 0.5s ease-in-out',
+            },
+            keyframes: {
+              fadeIn: {
+                '0%': { opacity: '0' },
+                '100%': { opacity: '1' },
+              },
+            }
+          },
+        },
+      }
+    </script>
+    <script src="https://unpkg.com/wavesurfer.js@7"></script>
+  <script type="importmap">
+{
+  "imports": {
+    "react/": "https://aistudiocdn.com/react@^19.1.1/",
+    "react": "https://aistudiocdn.com/react@^19.1.1",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.1.1/",
+    "wavesurfer.js": "https://aistudiocdn.com/wavesurfer.js@^7.10.1"
+  }
+}
+</script>
+</head>
+  <body class="bg-dark-1 text-light-1">
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>
