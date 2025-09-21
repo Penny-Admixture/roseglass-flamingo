@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, useRef } from 'react';
 import { UploadIcon } from './icons';
 
@@ -57,7 +56,7 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ onFileChange }) => {
 
   return (
     <div 
-        className={`bg-dark-3 p-4 rounded-lg shadow-lg border-2 border-dashed transition-all duration-300 ${isDragging ? 'border-brand-blue bg-dark-4' : 'border-dark-4'}`}
+        className={`bg-surface-1 p-4 rounded-lg border-2 border-dashed transition-all duration-300 ${isDragging ? 'border-accent-periwinkle' : 'border-border'}`}
         onDragEnter={handleDragEnter}
         onDragLeave={handleDragLeave}
         onDragOver={handleDragOver}
@@ -66,17 +65,19 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ onFileChange }) => {
         <input
             ref={fileInputRef}
             type="file"
-            accept="audio/*"
+            accept="audio/*,.mp3,.wav"
             onChange={handleFileSelect}
             className="hidden"
         />
-        <div className="flex flex-col items-center justify-center text-center p-6">
-            <UploadIcon className="w-12 h-12 text-brand-blue mb-4" />
-            <p className="text-light-2 mb-2">Drag & drop your audio file here</p>
-            <p className="text-sm text-gray-500 mb-4">or</p>
-            <button onClick={onButtonClick} className="bg-brand-blue text-white font-bold py-2 px-6 rounded-lg hover:bg-opacity-80 transition-all">
-                Select File
-            </button>
+        <div className="flex items-start p-4">
+            <UploadIcon className="w-10 h-10 text-accent-periwinkle mr-4 flex-shrink-0" />
+            <div className='text-left'>
+                <p className="text-text-main mb-2 font-bold">Drop audio file or select</p>
+                <p className="text-sm text-text-muted mb-4">Drag & drop your .wav or .mp3 file here.</p>
+                <button onClick={onButtonClick} className="bg-accent-periwinkle text-background font-bold py-2 px-4 rounded-md hover:opacity-80 transition-all text-sm">
+                    Select File
+                </button>
+            </div>
         </div>
     </div>
   );

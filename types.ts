@@ -1,4 +1,3 @@
-
 export interface AudioFile {
   file: File;
   url: string;
@@ -27,5 +26,10 @@ export interface EffectSettings {
   };
   reverb: {
     mix: number;
+  };
+  parametric_eq: {
+    frequency: number;
+    gain: number;
+    q: number;
   };
 }
