@@ -4,8 +4,8 @@ import { GuideTab } from './components/tabs/GuideTab';
 import { AnalysisTab } from './components/tabs/AnalysisTab';
 import { ProductionTab } from './components/tabs/ProductionTab';
 import { AudioVisualizer } from './components/AudioVisualizer';
-import { LogoIcon, GithubIcon } from './components/icons';
-import type { AudioFile, EffectSettings } from './types';
+import { LogoIcon } from './components/icons';
+import type { AudioFile, EffectSettings, ParametricEQBand } from './types';
 import { Tab } from './types';
 
 
@@ -15,7 +15,7 @@ const TabContent: React.FC<{
   isLoading: boolean; 
   setLoading: (loading: boolean) => void;
   effectSettings: EffectSettings;
-  onEffectChange: (effect: keyof EffectSettings, settings: any) => void;
+  onEffectChange: (effect: keyof EffectSettings | 'parametric_eq_bands', settings: any) => void;
 }> = ({ activeTab, audioFile, isLoading, setLoading, effectSettings, onEffectChange }) => {
   switch (activeTab) {
     case Tab.GUIDE:
@@ -29,6 +29,19 @@ const TabContent: React.FC<{
   }
 };
 
+const initialEQBands: ParametricEQBand[] = [
+  { id: 1, enabled: true, frequency: 60, gain: 0, q: 1, target: 'All' },
+  { id: 2, enabled: false, frequency: 150, gain: 0, q: 1, target: 'All' },
+  { id: 3, enabled: false, frequency: 400, gain: 0, q: 1, target: 'All' },
+  { id: 4, enabled: false, frequency: 1000, gain: 0, q: 1, target: 'All' },
+  { id: 5, enabled: false, frequency: 2000, gain: 0, q: 1, target: 'All' },
+  { id: 6, enabled: false, frequency: 4000, gain: 0, q: 1, target: 'All' },
+  { id: 7, enabled: false, frequency: 6000, gain: 0, q: 1, target: 'All' },
+  { id: 8, enabled: false, frequency: 8000, gain: 0, q: 1, target: 'All' },
+  { id: 9, enabled: false, frequency: 10000, gain: 0, q: 1, target: 'All' },
+  { id: 10, enabled: false, frequency: 15000, gain: 0, q: 1, target: 'All' },
+];
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>(Tab.GUIDE);
   const [audioFile, setAudioFile] = useState<AudioFile | null>(null);
@@ -37,7 +50,7 @@ export default function App() {
     low_shelf: { frequency: 320, gain: 0 },
     high_shelf: { frequency: 3200, gain: 0 },
     reverb: { mix: 0 },
-    parametric_eq: { frequency: 1000, gain: 0, q: 1 },
+    parametric_eq_bands: initialEQBands,
   });
 
   const handleFileChange = useCallback((file: File) => {
@@ -45,14 +58,23 @@ export default function App() {
       file,
       url: URL.createObjectURL(file),
     });
-    setActiveTab(Tab.ANALYSIS);
+    setActiveTab(Tab.PRODUCTION);
   }, []);
   
-  const handleEffectChange = useCallback((effectName: keyof EffectSettings, settings: any) => {
-    setEffectSettings(prev => ({
+  const handleEffectChange = useCallback((effectName: keyof EffectSettings | 'parametric_eq_bands', settings: any) => {
+    if (effectName === 'parametric_eq_bands') {
+      setEffectSettings(prev => ({
         ...prev,
-        [effectName]: { ...prev[effectName], ...settings },
-    }));
+        parametric_eq_bands: prev.parametric_eq_bands.map(band =>
+          band.id === settings.id ? { ...band, ...settings.changes } : band
+        ),
+      }));
+    } else {
+        setEffectSettings(prev => ({
+            ...prev,
+            [effectName]: { ...prev[effectName], ...settings },
+        }));
+    }
   }, []);
 
 
@@ -79,11 +101,13 @@ export default function App() {
       <header className="bg-accent-blue p-4 flex justify-between items-center sticky top-0 z-10">
         <div className="flex items-center gap-3">
           <LogoIcon className="h-8 w-8 text-white" />
-          <h1 className="text-xl font-bold text-white tracking-wider">lattice category field 2025.09.21</h1>
+          <h1 className="text-xl font-bold text-white tracking-wider">lattice category field</h1>
         </div>
-        <a href="https://github.com/NVIDIA/audio-flamingo" target="_blank" rel="noopener noreferrer" className="text-white/80 hover:text-white transition-colors">
-            <GithubIcon className="h-6 w-6" />
-        </a>
+        <div>
+            <span className="text-sm bg-accent-magenta-dark text-white/90 px-3 py-1 rounded">
+                v2025.09.21
+            </span>
+        </div>
       </header>
 
       <main className="flex-grow flex flex-col md:flex-row p-4 gap-4">

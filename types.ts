@@ -15,6 +15,17 @@ export enum Tab {
   PRODUCTION,
 }
 
+export type EQTarget = 'All' | 'Transients' | 'Sustained';
+
+export interface ParametricEQBand {
+  id: number;
+  enabled: boolean;
+  frequency: number;
+  gain: number;
+  q: number;
+  target: EQTarget;
+}
+
 export interface EffectSettings {
   low_shelf: {
     frequency: number;
@@ -27,9 +38,5 @@ export interface EffectSettings {
   reverb: {
     mix: number;
   };
-  parametric_eq: {
-    frequency: number;
-    gain: number;
-    q: number;
-  };
+  parametric_eq_bands: ParametricEQBand[];
 }

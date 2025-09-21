@@ -13,14 +13,14 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioFile, eff
   const audioContextRef = useRef<AudioContext | null>(null);
   const lowShelfFilterRef = useRef<BiquadFilterNode | null>(null);
   const highShelfFilterRef = useRef<BiquadFilterNode | null>(null);
-  const peakingFilterRef = useRef<BiquadFilterNode | null>(null);
+  const peakingFiltersRef = useRef<BiquadFilterNode[]>([]);
   const convolverRef = useRef<ConvolverNode | null>(null);
   const reverbGainRef = useRef<GainNode | null>(null);
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [isReady, setIsReady] = useState(false);
 
-  const isEqActive = effectSettings.parametric_eq.gain !== 0;
+  const isEqActive = effectSettings.parametric_eq_bands.some(band => band.enabled && band.gain !== 0);
 
   const createImpulseResponse = useCallback((audioContext: AudioContext) => {
     const duration = 2;
@@ -69,9 +69,16 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioFile, eff
       highShelf.type = 'highshelf';
       highShelfFilterRef.current = highShelf;
 
-      const peaking = audioContext.createBiquadFilter();
-      peaking.type = 'peaking';
-      peakingFilterRef.current = peaking;
+      // Create and chain 10 peaking filters
+      peakingFiltersRef.current = [];
+      let lastNode: AudioNode = highShelf;
+      for (let i = 0; i < 10; i++) {
+        const peaking = audioContext.createBiquadFilter();
+        peaking.type = 'peaking';
+        lastNode.connect(peaking);
+        lastNode = peaking;
+        peakingFiltersRef.current.push(peaking);
+      }
 
       const convolver = audioContext.createConvolver();
       convolver.buffer = createImpulseResponse(audioContext);
@@ -82,17 +89,27 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioFile, eff
 
       const dryGain = audioContext.createGain();
       const wetGain = audioContext.createGain();
-
-      source.connect(lowShelf).connect(highShelf).connect(peaking).connect(dryGain).connect(audioContext.destination);
-      source.connect(lowShelf).connect(highShelf).connect(peaking).connect(convolver).connect(wetGain).connect(audioContext.destination);
       
+      source.connect(lowShelf).connect(highShelf); // Connect to the start of the peaking chain
+      
+      // Connect the end of the peaking chain to the rest of the graph
+      lastNode.connect(dryGain).connect(audioContext.destination);
+      lastNode.connect(convolver).connect(wetGain).connect(audioContext.destination);
+      
+      // Initial settings
       lowShelf.frequency.value = effectSettings.low_shelf.frequency;
       lowShelf.gain.value = effectSettings.low_shelf.gain;
       highShelf.frequency.value = effectSettings.high_shelf.frequency;
       highShelf.gain.value = effectSettings.high_shelf.gain;
-      peaking.frequency.value = effectSettings.parametric_eq.frequency;
-      peaking.gain.value = effectSettings.parametric_eq.gain;
-      peaking.Q.value = effectSettings.parametric_eq.q;
+      
+      effectSettings.parametric_eq_bands.forEach((band, index) => {
+          const filter = peakingFiltersRef.current[index];
+          if (filter) {
+              filter.frequency.value = band.frequency;
+              filter.gain.value = band.enabled ? band.gain : 0;
+              filter.Q.value = band.q;
+          }
+      });
 
       const reverbMix = effectSettings.reverb.mix;
       dryGain.gain.value = 1 - reverbMix;
@@ -125,11 +142,18 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioFile, eff
         highShelfFilterRef.current.frequency.value = effectSettings.high_shelf.frequency;
         highShelfFilterRef.current.gain.value = effectSettings.high_shelf.gain;
     }
-    if(peakingFilterRef.current) {
-        peakingFilterRef.current.frequency.value = effectSettings.parametric_eq.frequency;
-        peakingFilterRef.current.gain.value = effectSettings.parametric_eq.gain;
-        peakingFilterRef.current.Q.value = effectSettings.parametric_eq.q;
-    }
+    effectSettings.parametric_eq_bands.forEach((band, index) => {
+        const filter = peakingFiltersRef.current[index];
+        if (filter) {
+            filter.frequency.value = band.frequency;
+            filter.gain.value = band.enabled ? band.gain : 0;
+            filter.Q.value = band.q;
+            // NOTE: The 'target' property (Transients/Sustained) is a UI/state prototype.
+            // The Web Audio API does not natively support transient/sustained splitting.
+            // A real implementation would require a complex custom AudioWorklet with FFT analysis.
+            // For this demo, the EQ is always applied to the 'All' signal.
+        }
+    });
     if (reverbGainRef.current){
         reverbGainRef.current.gain.value = effectSettings.reverb.mix;
     }
